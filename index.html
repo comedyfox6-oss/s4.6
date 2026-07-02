@@ -11,23 +11,40 @@
 <meta name="apple-mobile-web-app-title" content="S4.6">
 <script src="https://js.puter.com/v2/"></script>
 <style>
-  html { touch-action: manipulation; overscroll-behavior: none; }
+  html {
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+
   * { box-sizing: border-box; }
+
   body {
     margin: 0;
     font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
     background: #faf9f5;
     color: #3d3d3a;
-    height: 100vh;
+    height: 100dvh;
     display: flex;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: manipulation;
     -webkit-user-select: none;
     user-select: none;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
   }
 
-  #input, #memoryText, #chat, .msg { -webkit-user-select: text; user-select: text; }
+  #input, #memoryText, #chat, .msg, #chatList {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 
   #sidebar {
     width: 260px;
@@ -37,8 +54,8 @@
     flex-direction: column;
     flex-shrink: 0;
     transition: margin-left .2s, transform .2s ease;
-    z-index: 20;
   }
+
   #sidebar.hidden { margin-left: -260px; }
 
   #brand {
@@ -59,6 +76,7 @@
     text-align: left;
     font-size: 14px;
   }
+
   #newChatBtn:hover { background: #eeece2; }
 
   #chatList {
@@ -82,6 +100,7 @@
     align-items: center;
     gap: 6px;
   }
+
   .chatItem:hover { background: #eeece2; }
   .chatItem.active { background: #ede6da; color: #3d3d3a; }
   .chatItem .del { opacity: 0; font-size: 12px; color: #a39d8c; }
@@ -97,6 +116,7 @@
     cursor: pointer;
     font-size: 12px;
   }
+
   #memoryBtn:hover { background: #eeece2; }
 
   #main {
@@ -111,7 +131,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
     border-bottom: 1px solid #ece9e0;
     flex-shrink: 0;
   }
@@ -124,7 +144,9 @@
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 6px;
+    flex-shrink: 0;
   }
+
   #burger:hover { background: #ece9e0; }
 
   #titleBar {
@@ -173,9 +195,11 @@
     border: 1px solid #d8d5c9;
     background: #fff;
     color: #3d3d3a;
-    font-size: 15px;
+    font-size: 16px;
     outline: none;
+    min-width: 0;
   }
+
   #input:focus { border-color: #da7756; }
 
   #send {
@@ -186,7 +210,9 @@
     color: white;
     cursor: pointer;
     font-size: 14px;
+    flex-shrink: 0;
   }
+
   #send:hover { background: #c8663f; }
   #send:disabled { background: #d8d5c9; cursor: default; }
 
@@ -204,6 +230,7 @@
     align-items: center;
     justify-content: center;
   }
+
   .iconBtn:hover { background: #eeece2; }
   .iconBtn.recording { background: #da7756; color: #fff; border-color: #da7756; }
 
@@ -211,15 +238,18 @@
     display: none;
     padding: 0 16px 8px;
   }
+
   #imgPreview.show {
     display: flex;
     align-items: center;
     gap: 8px;
   }
+
   #imgPreview img {
     height: 48px;
     border-radius: 8px;
   }
+
   #imgPreview span {
     font-size: 12px;
     color: #a39d8c;
@@ -242,15 +272,16 @@
     align-items: center;
     justify-content: center;
     z-index: 30;
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
   }
+
   #memoryModal.show { display: flex; }
 
   #memoryBox {
     background: #faf9f5;
     border-radius: 14px;
     padding: 20px;
-    width: 90%;
-    max-width: 480px;
+    width: min(90vw, 480px);
     border: 1px solid #e5e3da;
   }
 
@@ -310,10 +341,13 @@
       top: 0;
       left: 0;
       bottom: 0;
+      z-index: 40;
       width: min(86vw, 320px);
       margin-left: 0;
       transform: translateX(-100%);
       box-shadow: 8px 0 24px rgba(0,0,0,.08);
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
     }
 
     #sidebar.hidden {
@@ -407,15 +441,85 @@ const attachBtn = document.getElementById('attachBtn');
 const micBtn = document.getElementById('micBtn');
 const imgPreview = document.getElementById('imgPreview');
 const imgPreviewThumb = document.getElementById('imgPreviewThumb');
-const burger = document.getElementById('burger');
 
 let attachedImage = null;
 
-function closeSidebarOnMobile() {
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function saveChats() { localStorage.setItem(LS_CHATS, JSON.stringify(chats)); }
+function saveMemory() { localStorage.setItem(LS_MEMORY, memory); }
+
+function newChat() {
+  const c = { id: uid(), title: 'Новый чат', messages: [] };
+  chats.unshift(c);
+  activeId = c.id;
+  saveChats();
+  renderChatList();
+  renderMessages();
   if (window.innerWidth <= 820) sidebar.classList.add('hidden');
 }
 
+function getActive() { return chats.find(c => c.id === activeId); }
+
+function renderChatList() {
+  chatListEl.innerHTML = '';
+  chats.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'chatItem' + (c.id === activeId ? ' active' : '');
+    div.innerHTML = '<span>' + c.title + '</span><span class="del" data-id="' + c.id + '">✕</span>';
+    div.addEventListener('click', (e) => {
+      if (e.target.classList.contains('del')) {
+        chats = chats.filter(x => x.id !== c.id);
+        saveChats();
+        if (activeId === c.id) {
+          activeId = chats[0] ? chats[0].id : null;
+          if (!activeId) newChat();
+        }
+        renderChatList();
+        renderMessages();
+        if (window.innerWidth <= 820) sidebar.classList.add('hidden');
+        return;
+      }
+      activeId = c.id;
+      renderChatList();
+      renderMessages();
+      if (window.innerWidth <= 820) sidebar.classList.add('hidden');
+    });
+    chatListEl.appendChild(div);
+  });
+}
+
+function renderMessages() {
+  chatEl.innerHTML = '';
+  const c = getActive();
+  if (!c) return;
+  c.messages.forEach(m => addBubble(m.content, m.role, m.image));
+}
+
+function addBubble(text, role, imageUrl) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : role === 'sys' ? 'sys' : 'bot');
+  if (text) div.appendChild(document.createTextNode(text));
+  if (imageUrl) {
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.className = 'msgImg';
+    div.appendChild(img);
+  }
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+
+function buildContent(m) {
+  return m.content || '';
+}
+
+async function callModel(payload) {
+  return await puter.ai.chat(payload, { model: 'claude-sonnet-4-6' });
+}
+
 attachBtn.addEventListener('click', () => fileInput.click());
+
 fileInput.addEventListener('change', () => {
   const file = fileInput.files[0];
   if (!file) return;
@@ -456,91 +560,12 @@ if (SR) {
   micBtn.addEventListener('click', () => alert('Голосовой ввод не поддерживается этим браузером'));
 }
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-function saveChats() { localStorage.setItem(LS_CHATS, JSON.stringify(chats)); }
-function saveMemory() { localStorage.setItem(LS_MEMORY, memory); }
-
-function newChat() {
-  const c = { id: uid(), title: 'Новый чат', messages: [] };
-  chats.unshift(c);
-  activeId = c.id;
-  saveChats();
-  renderChatList();
-  renderMessages();
-  closeSidebarOnMobile();
-}
-
-function getActive() { return chats.find(c => c.id === activeId); }
-
-function renderChatList() {
-  chatListEl.innerHTML = '';
-  chats.forEach(c => {
-    const div = document.createElement('div');
-    div.className = 'chatItem' + (c.id === activeId ? ' active' : '');
-    div.innerHTML = '<span>' + c.title + '</span><span class="del" data-id="' + c.id + '">✕</span>';
-    div.addEventListener('click', (e) => {
-      if (e.target.classList.contains('del')) {
-        chats = chats.filter(x => x.id !== c.id);
-        saveChats();
-        if (activeId === c.id) {
-          activeId = chats[0] ? chats[0].id : null;
-          if (!activeId) newChat();
-        }
-        renderChatList();
-        renderMessages();
-        closeSidebarOnMobile();
-        return;
-      }
-      activeId = c.id;
-      renderChatList();
-      renderMessages();
-      closeSidebarOnMobile();
-    });
-    chatListEl.appendChild(div);
-  });
-}
-
-function renderMessages() {
-  chatEl.innerHTML = '';
-  const c = getActive();
-  if (!c) return;
-  c.messages.forEach(m => addBubble(m.content, m.role, m.image));
-}
-
-function addBubble(text, role, imageUrl) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + (role === 'user' ? 'user' : role === 'sys' ? 'sys' : 'bot');
-  if (text) div.appendChild(document.createTextNode(text));
-  if (imageUrl) {
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.className = 'msgImg';
-    div.appendChild(img);
-  }
-  chatEl.appendChild(div);
-  chatEl.scrollTop = chatEl.scrollHeight;
-  return div;
-}
-
-function buildContent(m) {
-  if (m.image) {
-    return [
-      { type: 'text', text: m.content || '' },
-      { type: 'image_url', image_url: { url: m.image } }
-    ];
-  }
-  return m.content;
-}
-
-async function callModel(payload) {
-  return await puter.ai.chat(payload, { model: 'claude-sonnet-4-6' });
-}
-
 async function sendMessage() {
   const text = inputEl.value.trim();
   const image = attachedImage;
   if (!text && !image) return;
   const c = getActive();
+
   inputEl.value = '';
   attachedImage = null;
   fileInput.value = '';
@@ -557,7 +582,6 @@ async function sendMessage() {
   }
 
   const userMsg = { role: 'user', content: text };
-  if (image) userMsg.image = image;
   c.messages.push(userMsg);
   if (c.title === 'Новый чат') c.title = (text || 'Фото').slice(0, 30);
   saveChats();
@@ -596,7 +620,7 @@ async function sendMessage() {
 sendBtn.addEventListener('click', sendMessage);
 inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 document.getElementById('newChatBtn').addEventListener('click', newChat);
-burger.addEventListener('click', () => sidebar.classList.toggle('hidden'));
+document.getElementById('burger').addEventListener('click', () => sidebar.classList.toggle('hidden'));
 
 document.getElementById('memoryBtn').addEventListener('click', () => {
   document.getElementById('memoryText').value = memory;
