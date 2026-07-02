@@ -11,14 +11,19 @@
 <meta name="apple-mobile-web-app-title" content="S4.6">
 <script src="https://js.puter.com/v2/"></script>
 <style>
+  :root{
+    --safe-top: env(safe-area-inset-top);
+    --safe-right: env(safe-area-inset-right);
+    --safe-bottom: env(safe-area-inset-bottom);
+    --safe-left: env(safe-area-inset-left);
+  }
+
   html {
     touch-action: manipulation;
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
-    padding-top: env(safe-area-inset-top);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
+    height: 100%;
+    background: #faf9f5;
   }
 
   * { box-sizing: border-box; }
@@ -28,17 +33,18 @@
     font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
     background: #faf9f5;
     color: #3d3d3a;
-    height: 100dvh;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
     display: flex;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: manipulation;
     -webkit-user-select: none;
     user-select: none;
-    padding-top: env(safe-area-inset-top);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
+    padding-top: var(--safe-top);
+    padding-right: var(--safe-right);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
   }
 
   #input, #memoryText, #chat, .msg, #chatList {
@@ -53,7 +59,11 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    transition: margin-left .2s, transform .2s ease;
+    transition: transform .22s ease, margin-left .22s ease;
+    position: relative;
+    z-index: 20;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
   }
 
   #sidebar.hidden { margin-left: -260px; }
@@ -125,15 +135,19 @@
     flex-direction: column;
     min-width: 0;
     background: #faf9f5;
+    height: 100%;
   }
 
   #topbar {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+    padding: 12px 16px;
+    padding-top: calc(12px + var(--safe-top));
     border-bottom: 1px solid #ece9e0;
     flex-shrink: 0;
+    background: #faf9f5;
+    z-index: 5;
   }
 
   #burger {
@@ -163,6 +177,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-height: 0;
   }
 
   .msg {
@@ -183,9 +198,10 @@
   #inputBar {
     display: flex;
     gap: 8px;
-    padding: 14px 16px calc(20px + env(safe-area-inset-bottom));
+    padding: 14px 16px calc(20px + var(--safe-bottom));
     align-items: center;
     flex-shrink: 0;
+    background: #faf9f5;
   }
 
   #input {
@@ -211,6 +227,8 @@
     cursor: pointer;
     font-size: 14px;
     flex-shrink: 0;
+    min-width: 52px;
+    height: 40px;
   }
 
   #send:hover { background: #c8663f; }
@@ -237,6 +255,7 @@
   #imgPreview {
     display: none;
     padding: 0 16px 8px;
+    background: #faf9f5;
   }
 
   #imgPreview.show {
@@ -272,7 +291,7 @@
     align-items: center;
     justify-content: center;
     z-index: 30;
-    padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    padding: calc(16px + var(--safe-top)) 16px calc(16px + var(--safe-bottom));
   }
 
   #memoryModal.show { display: flex; }
@@ -283,6 +302,8 @@
     padding: 20px;
     width: min(90vw, 480px);
     border: 1px solid #e5e3da;
+    max-height: 80vh;
+    overflow: auto;
   }
 
   #memoryBox h3 {
@@ -346,8 +367,7 @@
       margin-left: 0;
       transform: translateX(-100%);
       box-shadow: 8px 0 24px rgba(0,0,0,.08);
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
+      background: #f4f3ee;
     }
 
     #sidebar.hidden {
@@ -375,7 +395,7 @@
     }
 
     #inputBar {
-      padding: 10px 10px calc(12px + env(safe-area-inset-bottom));
+      padding: 10px 10px calc(12px + var(--safe-bottom));
     }
 
     #input {
@@ -441,6 +461,7 @@ const attachBtn = document.getElementById('attachBtn');
 const micBtn = document.getElementById('micBtn');
 const imgPreview = document.getElementById('imgPreview');
 const imgPreviewThumb = document.getElementById('imgPreviewThumb');
+const burger = document.getElementById('burger');
 
 let attachedImage = null;
 
@@ -591,9 +612,17 @@ async function sendMessage() {
   sendBtn.disabled = true;
   const loadingBubble = addBubble('...', 'sys');
 
-  const identityPrompt = [{ role: 'user', content: 'Контекст: ты — Claude Sonnet 4.6 от Anthropic. Отвечай как обычно отвечал бы, не путай себя с другими моделями и версиями. Ты сейчас работаешь через API в стороннем интерфейсе, а не в официальном приложении claude.ai — поэтому у тебя нет доступа к артефактам, поиску в интернете и другим фишкам интерфейса, это ограничение среды, а не твоё. Если тебя об этом спросят — спокойно и без извинений объясни это как факт, не оправдывайся.' }];
+  const identityPrompt = [{
+    role: 'user',
+    content: 'Контекст: ты — Claude Sonnet 4.6 от Anthropic. Отвечай как обычно отвечал бы, не путай себя с другими моделями и версиями. Ты сейчас работаешь через API в стороннем интерфейсе, а не в официальном приложении claude.ai — поэтому у тебя нет доступа к артефактам, поиску в интернете и другим фишкам интерфейса, это ограничение среды, а не твоё.'
+  }];
+
   const systemPrompt = memory ? [{ role: 'user', content: 'Вот что ты знаешь обо мне, учитывай в ответах: ' + memory }] : [];
-  const payload = [...identityPrompt, ...systemPrompt, ...c.messages.filter(x => x.role !== 'sys').map(x => ({ role: x.role, content: buildContent(x) }))];
+  const payload = [
+    ...identityPrompt,
+    ...systemPrompt,
+    ...c.messages.filter(x => x.role !== 'sys').map(x => ({ role: x.role, content: buildContent(x) }))
+  ];
 
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -620,7 +649,7 @@ async function sendMessage() {
 sendBtn.addEventListener('click', sendMessage);
 inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 document.getElementById('newChatBtn').addEventListener('click', newChat);
-document.getElementById('burger').addEventListener('click', () => sidebar.classList.toggle('hidden'));
+burger.addEventListener('click', () => sidebar.classList.toggle('hidden'));
 
 document.getElementById('memoryBtn').addEventListener('click', () => {
   document.getElementById('memoryText').value = memory;
