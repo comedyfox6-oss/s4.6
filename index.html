@@ -294,21 +294,41 @@ async function ensurePuter() {
 let isSending = false;
 const MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-sonnet-4-5', 'llama-3.1-70b-versatile'];
 
+async function callPollinations(payload) {
+  // отдельный бесплатный сервис, свой собственный лимит, не связан с Puter
+  const res = await fetch('https://text.pollinations.ai/openai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude', messages: payload })
+  });
+  if (!res.ok) throw new Error('Pollinations тоже недоступен');
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) throw new Error('Pollinations вернул пустой ответ');
+  return { message: { content: [{ text }] } };
+}
+
 async function callModel(payload) {
   const ok = await ensurePuter();
-  if (!ok) throw new Error('Не удалось подключиться к Puter (проверь интернет)');
   let lastErr = null;
-  for (const model of MODELS) {
-    try {
-      return await Promise.race([
-        puter.ai.chat(payload, { model }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает')), 25000))
-      ]);
-    } catch (e) {
-      lastErr = e;
+  if (ok) {
+    for (const model of MODELS) {
+      try {
+        return await Promise.race([
+          puter.ai.chat(payload, { model }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает')), 25000))
+        ]);
+      } catch (e) {
+        lastErr = e;
+      }
     }
   }
-  throw lastErr;
+  // Puter полностью недоступен — пробуем совсем другой бесплатный сервис
+  try {
+    return await callPollinations(payload);
+  } catch (e) {
+    throw lastErr || e;
+  }
 }
 
 attachBtn.addEventListener('click', () => fileInput.click());
