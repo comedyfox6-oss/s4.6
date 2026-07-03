@@ -292,14 +292,23 @@ async function ensurePuter() {
 }
 
 let isSending = false;
+const MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-sonnet-4-5', 'llama-3.1-70b-versatile'];
 
 async function callModel(payload) {
   const ok = await ensurePuter();
   if (!ok) throw new Error('Не удалось подключиться к Puter (проверь интернет)');
-  return await Promise.race([
-    puter.ai.chat(payload, { model: 'claude-sonnet-4-6' }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает, попробуй ещё раз')), 25000))
-  ]);
+  let lastErr = null;
+  for (const model of MODELS) {
+    try {
+      return await Promise.race([
+        puter.ai.chat(payload, { model }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает')), 25000))
+      ]);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
 }
 
 attachBtn.addEventListener('click', () => fileInput.click());
@@ -366,7 +375,7 @@ async function sendMessage() {
     return;
   }
 
-  c.messages.push({ role: 'user', content: text });
+  c.messages.push({ role: 'user', content: text, image: image || undefined });
   if (c.title === 'Новый чат') c.title = (text || 'Фото').slice(0, 30);
   saveChats();
   renderChatList();
@@ -375,15 +384,31 @@ async function sendMessage() {
   sendBtn.disabled = true;
   const loadingBubble = addBubble('...', 'sys');
 
-  const identityPrompt = [{ role: 'user', content: 'Контекст: ты — Claude Sonnet 4.6 от Anthropic. Отвечай как обычно отвечал бы, не путай себя с другими моделями и версиями. Ты сейчас работаешь через API в стороннем интерфейсе, а не в официальном приложении claude.ai — поэтому у тебя нет доступа к артефактам, поиску в интернете и другим фишкам интерфейса, это ограничение среды, а не твоё. Если тебя об этом спросят — спокойно и без извинений объясни это как факт, не оправдывайся.' }];
+  const identityPrompt = [{ role: 'user', content: 'Контекст: ты — одна из моделей Claude от Anthropic (обычно Sonnet 4.6, иногда — если она перегружена — может ответить другая версия Claude в качестве запасного варианта). Не путай себя с другими семействами моделей (GPT, Gemini и т.д.) — если ты не Claude (например, попал сюда как самый последний запасной вариант), честно скажи об этом, не притворяйся Клодом. Ты сейчас работаешь через API в стороннем интерфейсе, а не в официальном приложении claude.ai — поэтому у тебя нет доступа к артефактам, поиску в интернете и другим фишкам интерфейса, это ограничение среды, а не твоё. Если тебя об этом спросят — спокойно и без извинений объясни это как факт, не оправдывайся. У тебя есть долгосрочная память между чатами: если в разговоре всплывает важный факт о собеседнике, который стоит помнить в будущих разговорах (имя, предпочтения, важные события, факты о жизни) — добавь в самый конец своего ответа отдельной строкой тег вида [ЗАПОМНИТЬ: краткий факт]. Делай это только когда это действительно важно и не будет повторением уже известного, не на каждое сообщение. Этот тег не будет виден собеседнику, он для тебя самого.' }];
   const systemPrompt = memory ? [{ role: 'user', content: 'Вот что ты знаешь обо мне, учитывай в ответах: ' + memory }] : [];
-  const payload = [...identityPrompt, ...systemPrompt, ...c.messages.filter(x => x.role !== 'sys').map(x => ({ role: x.role, content: x.content || '' }))];
+  const payload = [...identityPrompt, ...systemPrompt, ...c.messages.filter(x => x.role !== 'sys').map(x => {
+    if (x.image) {
+      return { role: x.role, content: [
+        { type: 'text', text: x.content || '' },
+        { type: 'image_url', image_url: { url: x.image } }
+      ]};
+    }
+    return { role: x.role, content: x.content || '' };
+  })];
 
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await callModel(payload);
-      const reply = response.message.content[0].text;
+      let reply = response.message.content[0].text;
+
+      const memMatch = reply.match(/\[ЗАПОМНИТЬ:\s*([^\]]+)\]/i);
+      if (memMatch) {
+        memory += (memory ? '\n' : '') + memMatch[1].trim();
+        saveMemory();
+        reply = reply.replace(/\[ЗАПОМНИТЬ:\s*[^\]]+\]/i, '').trim();
+      }
+
       chatEl.removeChild(loadingBubble);
       c.messages.push({ role: 'assistant', content: reply });
       saveChats();
