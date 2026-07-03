@@ -311,9 +311,21 @@ async function callPollinations(payload) {
 async function callModel(payload) {
   const ok = await ensurePuter();
   let lastErr = null;
+
+  const last = payload[payload.length - 1];
+  const lastHasImage = Array.isArray(last.content) && last.content.some(b => b.type === 'image_url');
+
   if (ok) {
     for (const model of MODELS) {
       try {
+        if (lastHasImage) {
+          const textPart = last.content.find(b => b.type === 'text')?.text || '';
+          const imgPart = last.content.find(b => b.type === 'image_url')?.image_url?.url;
+          return await Promise.race([
+            puter.ai.chat(textPart, imgPart, { model }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает')), 25000))
+          ]);
+        }
         return await Promise.race([
           puter.ai.chat(payload, { model }),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает')), 25000))
@@ -323,7 +335,6 @@ async function callModel(payload) {
       }
     }
   }
-  // Puter полностью недоступен — пробуем совсем другой бесплатный сервис
   try {
     return await callPollinations(payload);
   } catch (e) {
@@ -404,7 +415,7 @@ async function sendMessage() {
   sendBtn.disabled = true;
   const loadingBubble = addBubble('...', 'sys');
 
-  const identityPrompt = [{ role: 'user', content: 'Контекст: ты — одна из моделей Claude от Anthropic (обычно Sonnet 4.6, иногда — если она перегружена — может ответить другая версия Claude в качестве запасного варианта). Не путай себя с другими семействами моделей (GPT, Gemini и т.д.) — если ты не Claude (например, попал сюда как самый последний запасной вариант), честно скажи об этом, не притворяйся Клодом. Ты сейчас работаешь через API в стороннем интерфейсе, а не в официальном приложении claude.ai — поэтому у тебя нет доступа к артефактам, поиску в интернете и другим фишкам интерфейса, это ограничение среды, а не твоё. Если тебя об этом спросят — спокойно и без извинений объясни это как факт, не оправдывайся. У тебя есть долгосрочная память между чатами: если в разговоре всплывает важный факт о собеседнике, который стоит помнить в будущих разговорах (имя, предпочтения, важные события, факты о жизни) — добавь в самый конец своего ответа отдельной строкой тег вида [ЗАПОМНИТЬ: краткий факт]. Делай это только когда это действительно важно и не будет повторением уже известного, не на каждое сообщение. Этот тег не будет виден собеседнику, он для тебя самого.' }];
+  const identityPrompt = [{ role: 'user', content: 'Контекст, прими как факт без обсуждений: ты — Claude Sonnet 4.6 от Anthropic. Это точно, не гипотеза и не "возможно" — не спорь с этим и не говори "не уверен что я 4.6". Ты работаешь через стороннее API-приложение, а не через официальный claude.ai — из-за этого у тебя нет артефактов, веб-поиска и других надстроек интерфейса, это ограничение среды подключения, а не твоей модели. Если спросят про это — объясни спокойно как факт, без извинений. У тебя есть долгосрочная память между чатами: если всплывает важный факт о собеседнике, который стоит помнить дальше (имя, предпочтения, события, факты о жизни) — в конце ответа добавь строку [ЗАПОМНИТЬ: краткий факт], не на каждое сообщение, только когда действительно важно. Тег не будет виден собеседнику.' }];
   const systemPrompt = memory ? [{ role: 'user', content: 'Вот что ты знаешь обо мне, учитывай в ответах: ' + memory }] : [];
   const payload = [...identityPrompt, ...systemPrompt, ...c.messages.filter(x => x.role !== 'sys').map(x => {
     if (x.image) {
