@@ -32,6 +32,7 @@
     user-select: text;
   }
 
+  /* сайдбар — всегда оверлей поверх чата */
   #sidebar {
     position: fixed;
     top: 0; left: 0; bottom: 0;
@@ -66,6 +67,7 @@
   #memoryBtn { margin: 8px 12px 14px; padding: 8px 10px; border: 1px solid #d8d5c9; border-radius: 10px; background: #fff; color: #6b685f; cursor: pointer; font-size: 12px; }
   #memoryBtn:hover { background: #eeece2; }
 
+  /* основной чат — почти весь экран */
   #main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
   #burger {
@@ -277,6 +279,7 @@ async function ensurePuter() {
     await new Promise(r => setTimeout(r, 800));
     if (window.puter) return true;
   }
+  // скрипт так и не появился — пробуем подгрузить вручную ещё раз
   await new Promise((resolve) => {
     const s = document.createElement('script');
     s.src = 'https://js.puter.com/v2/';
@@ -289,22 +292,67 @@ async function ensurePuter() {
 }
 
 let isSending = false;
+const MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-sonnet-4-5'];
 
 async function callPollinations(payload) {
-  const res = await fetch('https://text.pollinations.ai/openai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'claude', messages: payload })
-  });
-  if (!res.ok) throw new Error('Pollinations тоже недоступен');
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Pollinations вернул пустой ответ');
-  return { message: { content: [{ text }] } };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const res = await fetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude', messages: payload }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error('Pollinations тоже недоступен (' + res.status + ')');
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error('Pollinations вернул пустой ответ');
+    return { message: { content: [{ text }] } };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') throw new Error('Pollinations долго не отвечает');
+    throw e;
+  }
+}
+
+async function callGroq(payload) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  try {
+    const groqPayload = payload.map(m => ({
+      role: m.role,
+      content: Array.isArray(m.content) ? (m.content.find(b => b.type === 'text')?.text || '') : m.content
+    }));
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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'
+      },
+      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: groqPayload }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error('Groq недоступен (' + res.status + ')');
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error('Groq вернул пустой ответ');
+    return { message: { content: [{ text }] } };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') throw new Error('Groq долго не отвечает');
+    throw e;
+  }
 }
 
 async function callModel(payload) {
-  return await callPollinations(payload);
+  try {
+    return await callPollinations(payload);
+  } catch (e) {
+    return await callGroq(payload);
+  }
 }
 
 attachBtn.addEventListener('click', () => fileInput.click());
