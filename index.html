@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>S4.6</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,7 +11,6 @@
 <meta name="apple-mobile-web-app-title" content="S4.6">
 <script src="https://js.puter.com/v2/"></script>
 <style>
-  html { touch-action: manipulation; }
   * { box-sizing: border-box; }
   body {
     margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -44,20 +43,12 @@
   .bot { align-self: flex-start; background: #f0eee6; color: #3d3d3a; }
   .sys { align-self: center; background: transparent; color: #a39d8c; font-size: 12px; font-style: italic; }
 
-  #inputBar { display: flex; gap: 6px; padding: 12px 12px 18px; align-items: center; }
-  #input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 24px; border: 1px solid #d8d5c9; background: #fff; color: #3d3d3a; font-size: 15px; outline: none; }
+  #inputBar { display: flex; gap: 10px; padding: 14px 16px 20px; }
+  #input { flex: 1; padding: 12px 16px; border-radius: 24px; border: 1px solid #d8d5c9; background: #fff; color: #3d3d3a; font-size: 15px; outline: none; }
   #input:focus { border-color: #da7756; }
-  #send { padding: 0 16px; border: none; border-radius: 24px; background: #da7756; color: white; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+  #send { padding: 0 20px; border: none; border-radius: 24px; background: #da7756; color: white; cursor: pointer; font-size: 14px; }
   #send:hover { background: #c8663f; }
   #send:disabled { background: #d8d5c9; cursor: default; }
-  .iconBtn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #d8d5c9; background: #fff; color: #6b685f; cursor: pointer; font-size: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; }
-  .iconBtn:hover { background: #eeece2; }
-  .iconBtn.recording { background: #da7756; color: #fff; border-color: #da7756; }
-  #imgPreview { display: none; padding: 0 16px 8px; }
-  #imgPreview.show { display: flex; align-items: center; gap: 8px; }
-  #imgPreview img { height: 48px; border-radius: 8px; }
-  #imgPreview span { font-size: 12px; color: #a39d8c; cursor: pointer; }
-  .msgImg { max-width: 220px; border-radius: 12px; display: block; margin-top: 6px; }
 
   #memoryModal { display: none; position: fixed; inset: 0; background: rgba(61,61,58,.4); align-items: center; justify-content: center; z-index: 10; }
   #memoryModal.show { display: flex; }
@@ -85,14 +76,7 @@
     <div id="titleBar">S4.6</div>
   </div>
   <div id="chat"></div>
-  <div id="imgPreview">
-    <img id="imgPreviewThumb" src="">
-    <span id="imgPreviewRemove">убрать</span>
-  </div>
   <div id="inputBar">
-    <button class="iconBtn" id="attachBtn" title="Прикрепить фото">📎</button>
-    <input id="fileInput" type="file" accept="image/*" style="display:none">
-    <button class="iconBtn" id="micBtn" title="Голосовой ввод">🎤</button>
     <input id="input" placeholder="Напиши... («запомни ...» сохранит факт в память)" />
     <button id="send">→</button>
   </div>
@@ -122,52 +106,6 @@ const chatListEl = document.getElementById('chatList');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const sidebar = document.getElementById('sidebar');
-const fileInput = document.getElementById('fileInput');
-const attachBtn = document.getElementById('attachBtn');
-const micBtn = document.getElementById('micBtn');
-const imgPreview = document.getElementById('imgPreview');
-const imgPreviewThumb = document.getElementById('imgPreviewThumb');
-
-let attachedImage = null;
-
-attachBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => {
-  const file = fileInput.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    attachedImage = reader.result;
-    imgPreviewThumb.src = attachedImage;
-    imgPreview.classList.add('show');
-  };
-  reader.readAsDataURL(file);
-});
-document.getElementById('imgPreviewRemove').addEventListener('click', () => {
-  attachedImage = null;
-  fileInput.value = '';
-  imgPreview.classList.remove('show');
-});
-
-let recognition = null;
-let recognizing = false;
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR) {
-  recognition = new SR();
-  recognition.lang = 'ru-RU';
-  recognition.interimResults = false;
-  recognition.onresult = (e) => {
-    inputEl.value += (inputEl.value ? ' ' : '') + e.results[0][0].transcript;
-  };
-  recognition.onend = () => { recognizing = false; micBtn.classList.remove('recording'); };
-  micBtn.addEventListener('click', () => {
-    if (recognizing) { recognition.stop(); return; }
-    recognizing = true;
-    micBtn.classList.add('recording');
-    recognition.start();
-  });
-} else {
-  micBtn.addEventListener('click', () => alert('Голосовой ввод не поддерживается этим браузером'));
-}
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function saveChats() { localStorage.setItem(LS_CHATS, JSON.stringify(chats)); }
@@ -211,33 +149,16 @@ function renderMessages() {
   chatEl.innerHTML = '';
   const c = getActive();
   if (!c) return;
-  c.messages.forEach(m => addBubble(m.content, m.role, m.image));
+  c.messages.forEach(m => addBubble(m.content, m.role));
 }
 
-function addBubble(text, role, imageUrl) {
+function addBubble(text, role) {
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : role === 'sys' ? 'sys' : 'bot');
-  if (text) div.appendChild(document.createTextNode(text));
-  if (imageUrl) {
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.className = 'msgImg';
-    div.appendChild(img);
-  }
+  div.textContent = text;
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
   return div;
-}
-
-function buildContent(m) {
-  // сообщение может нести и текст, и картинку
-  if (m.image) {
-    return [
-      { type: 'text', text: m.content || '' },
-      { type: 'image_url', image_url: { url: m.image } }
-    ];
-  }
-  return m.content;
 }
 
 async function callModel(payload) {
@@ -246,16 +167,12 @@ async function callModel(payload) {
 
 async function sendMessage() {
   const text = inputEl.value.trim();
-  const image = attachedImage;
-  if (!text && !image) return;
+  if (!text) return;
   const c = getActive();
   inputEl.value = '';
-  attachedImage = null;
-  fileInput.value = '';
-  imgPreview.classList.remove('show');
 
   const m = text.match(/^запомни[:,]?\s*(.+)/i);
-  if (m && !image) {
+  if (m) {
     memory += (memory ? '\n' : '') + m[1];
     saveMemory();
     c.messages.push({ role: 'sys', content: 'Запомнено: ' + m[1] });
@@ -263,20 +180,18 @@ async function sendMessage() {
     return;
   }
 
-  const userMsg = { role: 'user', content: text };
-  if (image) userMsg.image = image;
-  c.messages.push(userMsg);
-  if (c.title === 'Новый чат') c.title = (text || 'Фото').slice(0, 30);
+  c.messages.push({ role: 'user', content: text });
+  if (c.title === 'Новый чат') c.title = text.slice(0, 30);
   saveChats();
   renderChatList();
-  addBubble(text, 'user', image);
+  addBubble(text, 'user');
 
   sendBtn.disabled = true;
   const loadingBubble = addBubble('...', 'sys');
 
   const identityPrompt = [{ role: 'user', content: 'Контекст: ты — Claude Sonnet 4.6 от Anthropic. Отвечай как обычно отвечал бы, не путай себя с другими моделями и версиями. Ты сейчас работаешь через API в стороннем интерфейсе, а не в официальном приложении claude.ai — поэтому у тебя нет доступа к артефактам, поиску в интернете и другим фишкам интерфейса, это ограничение среды, а не твоё. Если тебя об этом спросят — спокойно и без извинений объясни это как факт, не оправдывайся.' }];
   const systemPrompt = memory ? [{ role: 'user', content: 'Вот что ты знаешь обо мне, учитывай в ответах: ' + memory }] : [];
-  const payload = [...identityPrompt, ...systemPrompt, ...c.messages.filter(x => x.role !== 'sys').map(x => ({ role: x.role, content: buildContent(x) }))];
+  const payload = [...identityPrompt, ...systemPrompt, ...c.messages.filter(x => x.role !== 'sys')];
 
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt++) {
