@@ -273,7 +273,27 @@ function addBubble(text, role, imageUrl) {
   return div;
 }
 
+async function ensurePuter() {
+  if (window.puter) return true;
+  for (let i = 0; i < 3; i++) {
+    await new Promise(r => setTimeout(r, 800));
+    if (window.puter) return true;
+  }
+  // скрипт так и не появился — пробуем подгрузить вручную ещё раз
+  await new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = 'https://js.puter.com/v2/';
+    s.onload = resolve;
+    s.onerror = resolve;
+    document.head.appendChild(s);
+  });
+  await new Promise(r => setTimeout(r, 500));
+  return !!window.puter;
+}
+
 async function callModel(payload) {
+  const ok = await ensurePuter();
+  if (!ok) throw new Error('Не удалось подключиться к Puter (проверь интернет)');
   return await puter.ai.chat(payload, { model: 'claude-sonnet-4-6' });
 }
 
