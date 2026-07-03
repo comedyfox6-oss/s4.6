@@ -292,7 +292,7 @@ async function ensurePuter() {
 }
 
 let isSending = false;
-const MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-sonnet-4-5', 'llama-3.1-70b-versatile'];
+const MODELS = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-sonnet-4-5'];
 
 async function callPollinations(payload) {
   // отдельный бесплатный сервис, свой собственный лимит, не связан с Puter
@@ -338,7 +338,7 @@ async function callModel(payload) {
   try {
     return await callPollinations(payload);
   } catch (e) {
-    throw lastErr || e;
+    throw new Error('Все варианты недоступны: ' + (lastErr ? lastErr.message : '') + ' / ' + e.message);
   }
 }
 
