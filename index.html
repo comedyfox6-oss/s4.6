@@ -291,10 +291,15 @@ async function ensurePuter() {
   return !!window.puter;
 }
 
+let isSending = false;
+
 async function callModel(payload) {
   const ok = await ensurePuter();
   if (!ok) throw new Error('Не удалось подключиться к Puter (проверь интернет)');
-  return await puter.ai.chat(payload, { model: 'claude-sonnet-4-6' });
+  return await Promise.race([
+    puter.ai.chat(payload, { model: 'claude-sonnet-4-6' }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Долго не отвечает, попробуй ещё раз')), 25000))
+  ]);
 }
 
 attachBtn.addEventListener('click', () => fileInput.click());
@@ -338,10 +343,12 @@ if (SR) {
 }
 
 async function sendMessage() {
+  if (isSending) return;
   const text = inputEl.value.trim();
   const image = attachedImage;
   if (!text && !image) return;
   const c = getActive();
+  isSending = true;
 
   inputEl.value = '';
   attachedImage = null;
@@ -355,6 +362,7 @@ async function sendMessage() {
     saveMemory();
     c.messages.push({ role: 'sys', content: 'Запомнено: ' + m[1] });
     addBubble('Запомнено: ' + m[1], 'sys');
+    isSending = false;
     return;
   }
 
@@ -381,6 +389,7 @@ async function sendMessage() {
       saveChats();
       addBubble(reply, 'bot');
       sendBtn.disabled = false;
+      isSending = false;
       return;
     } catch (e) {
       lastError = e;
@@ -391,6 +400,7 @@ async function sendMessage() {
   chatEl.removeChild(loadingBubble);
   addBubble('Ошибка связи: ' + lastError.message, 'sys');
   sendBtn.disabled = false;
+  isSending = false;
 }
 
 sendBtn.addEventListener('click', sendMessage);
